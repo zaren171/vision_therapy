@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Images</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            width: 100%;
+            max-width: 1200px; /* Limit content width for better readability */
+            text-align: center;
+        }
+        #image-container {
+            margin-top: 20px;
+        }
+        #image-display {
+            max-width: 100%;
+            height: auto;
+            display: block; /* Remove extra space below image */
+            margin: 0 auto; /* Center image */
+        }
+        select, input[type="range"] {
+            margin: 10px 0;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button id="toggle-controls">Toggle Controls</button>
+        <div id="controls">
+            <h1>Static Images</h1>
+            <a href="index.html">Back to Home</a>
+            <br>
+            <label for="image-select">Choose an image:</label>
+            <select id="image-select">
+                <option value="">--Please choose an option--</option>
+                <option value="static/3d_box.jpg">3D Box</option>
+                <option value="static/box_and_balls.jpg" selected>Box and Balls</option>
+                <option value="static/pool_balls.jpg">Pool Balls</option>
+            </select>
+
+            <label for="size-slider">Adjust size:</label>
+            <input type="range" id="size-slider" min="10" max="100" value="100">
+        </div>
+
+        <div id="image-container">
+            <img id="image-display" src="static/box_and_balls.jpg" alt="Selected Image">
+        </div>
+    </div>
+
+    <script>
+        const imageSelect = document.getElementById('image-select');
+        const imageDisplay = document.getElementById('image-display');
+        const sizeSlider = document.getElementById('size-slider');
+        const toggleButton = document.getElementById('toggle-controls');
+        const controls = document.getElementById('controls');
+
+        imageSelect.addEventListener('change', (event) => {
+            const selectedImage = event.target.value;
+            imageDisplay.src = selectedImage;
+        });
+
+        sizeSlider.addEventListener('input', (event) => {
+            const newSize = event.target.value;
+            imageDisplay.style.width = newSize + '%';
+        });
+
+        toggleButton.addEventListener('click', () => {
+            controls.classList.toggle('hidden');
+        });
+    </script>
+</body>
+</html>

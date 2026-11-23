@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Boxes - Vision Therapy</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            touch-action: manipulation;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 98vw;
+            width: 98vw;
+        }
+        h1 { color: #333; margin-top: 0; }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .mode-selection {
+            margin-bottom: 20px;
+        }
+        #game-canvas-container {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            margin: 0 auto 20px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            overflow: visible;
+        }
+        canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            mix-blend-mode: multiply;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 10px;
+            max-width: 300px;
+            margin: 0 auto;
+        }
+        .controls button {
+            padding: 20px;
+            font-size: 24px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background: #fff;
+        }
+        .controls button:active {
+            background: #e0e0e0;
+        }
+        .controls button.hidden {
+            visibility: hidden;
+        }
+        .nav-link {
+            margin-top: 20px;
+            display: inline-block;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .difficulty-info {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 10px;
+        }
+        #btn-reset {
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            background: #fff;
+        }
+        #btn-reset:active {
+            background: #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dynamic Boxes</h1>
+        <div class="mode-selection">
+            <label><input type="checkbox" id="mode-convergence" checked> Convergence</label>
+            <label><input type="checkbox" id="mode-divergence" checked> Divergence</label>
+            <label style="margin-left: 20px;"><input type="checkbox" id="timer-enabled"> Enable Timer</label>
+            <label>Time (s): <input type="number" id="timer-duration" value="20" min="1" style="width: 40px;"></label>
+            <span id="timer-display" style="margin-left: 10px; font-weight: bold; color: #d9534f; visibility: hidden;">20s</span>
+        </div>
+        <div class="stats">
+            <div id="conv-stat">Conv: 0 (Diff: 0, Max: 0)</div>
+            <div id="div-stat">Div: 0 (Diff: 0, Max: 0)</div>
+        </div>
+        <div style="margin-bottom: 20px;">
+            <button id="btn-reset">Reset Splitting</button>
+        </div>
+        
+        <div id="game-canvas-container">
+            <canvas id="canvas-red"></canvas>
+            <canvas id="canvas-green"></canvas>
+        </div>
+
+        <div class="controls">
+            <button class="hidden"></button>
+            <button id="btn-up">↑</button>
+            <button class="hidden"></button>
+            <button id="btn-left">←</button>
+            <button id="btn-center">?</button>
+            <button id="btn-right">→</button>
+            <button class="hidden"></button>
+            <button id="btn-down">↓</button>
+            <button class="hidden"></button>
+        </div>
+
+        <div class="difficulty-info">
+            Identify the 3D popping square. Correct answers increase separation.
+        </div>
+        
+        <a href="index.html" class="nav-link">Back to Home</a>
+    </div>
+
+    <script>
+        const canvasRed = document.getElementById('canvas-red');
+        const canvasGreen = document.getElementById('canvas-green');
+        const ctxRed = canvasRed.getContext('2d');
+        const ctxGreen = canvasGreen.getContext('2d');
+
+        const boxSize = 500; // Size of the random box
+        const blockSize = 4; // Size of each random block
+        const subBoxSize = 120; // Size of the 3D sub-region
+        const localDisparity = 12; // Fixed local disparity for the 3D effect
+
+        let state = {
+            convergence: { score: 0, difficulty: 0, maxDifficulty: 0 },
+            divergence: { score: 0, difficulty: 0, maxDifficulty: 0 },
+            currentType: 'convergence', // 'convergence' or 'divergence'
+            currentPos: 'up', // 'up', 'down', 'left', 'right'
+        };
+
+        const modes = {
+            CONV: 'convergence',
+            DIV: 'divergence'
+        };
+
+        const positions = ['up', 'down', 'left', 'right'];
+
+        let timerInterval = null;
+        let timeLeft = 0;
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            const isEnabled = document.getElementById('timer-enabled').checked;
+            const timerDisplay = document.getElementById('timer-display');
+            
+            if (!isEnabled) {
+                timerDisplay.style.visibility = 'hidden';
+                return;
+            }
+
+            timeLeft = parseInt(document.getElementById('timer-duration').value) || 20;
+            timerDisplay.innerText = timeLeft + 's';
+            timerDisplay.style.visibility = 'visible';
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.innerText = timeLeft + 's';
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    handleGuess('timeout'); // Trigger "wrong" logic
+                }
+            }, 1000);
+        }
+
+        function initCanvases() {
+            canvasRed.width = boxSize;
+            canvasRed.height = boxSize;
+            canvasGreen.width = boxSize;
+            canvasGreen.height = boxSize;
+        }
+
+        function generateRDS() {
+            const cols = boxSize / blockSize;
+            const rows = boxSize / blockSize;
+            
+            // Randomly pick a type and position
+            const useConv = document.getElementById('mode-convergence').checked;
+            const useDiv = document.getElementById('mode-divergence').checked;
+            
+            if (useConv && useDiv) {
+                state.currentType = Math.random() > 0.5 ? modes.CONV : modes.DIV;
+            } else if (useConv) {
+                state.currentType = modes.CONV;
+            } else if (useDiv) {
+                state.currentType = modes.DIV;
+            } else {
+                // Default if none checked
+                state.currentType = modes.CONV;
+            }
+
+            state.currentPos = positions[Math.floor(Math.random() * positions.length)];
+
+            // Clear
+            ctxRed.clearRect(0, 0, boxSize, boxSize);
+            ctxGreen.clearRect(0, 0, boxSize, boxSize);
+
+            // Generate base pattern
+            const pattern = [];
+            for (let y = 0; y < rows; y++) {
+                pattern[y] = [];
+                for (let x = 0; x < cols; x++) {
+                    pattern[y][x] = Math.random() > 0.5;
+                }
+            }
+
+            // Determine sub-region bounds
+            let subX, subY;
+            const margin = (boxSize - 3 * (subBoxSize)) / 2; // Rough margin for 3x3 grid
+            const center = (boxSize - subBoxSize) / 2;
+            const offset = subBoxSize + 10;
+
+            if (state.currentPos === 'up') { subX = center; subY = center - offset; }
+            if (state.currentPos === 'down') { subX = center; subY = center + offset; }
+            if (state.currentPos === 'left') { subX = center - offset; subY = center; }
+            if (state.currentPos === 'right') { subX = center + offset; subY = center; }
+
+            // Draw Red Canvas
+            drawPattern(ctxRed, pattern, '#FF0000');
+
+            // Draw Green Canvas with disparity
+            // Local disparity: shift the sub-region
+            // If currentType is convergence, sub-region shift for Green should be LEFT?
+            // Wait: 
+            // In anaglyph (Red Left, Green Right):
+            // Convergence (Pop out): Green content shifts Left relative to Red content.
+            // Divergence (Sink in): Green content shifts Right relative to Red content.
+            // Actually, "pop out" is easier to see usually. Let's make it pop out for both if possible?
+            // No, the user wants convergence/divergence modes.
+            
+            let shift = (state.currentType === modes.CONV) ? -localDisparity : localDisparity;
+            
+            // Draw Green
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    let drawX = x * blockSize;
+                    let drawY = y * blockSize;
+                    
+                    let finalX = x;
+                    // Check if inside sub-region
+                    if (drawX >= subX && drawX < subX + subBoxSize && 
+                        drawY >= subY && drawY < subY + subBoxSize) {
+                        // Shift the pattern lookup
+                        let blockShift = Math.round(shift / blockSize);
+                        let lookupX = (x - blockShift + cols) % cols;
+                        if (pattern[y][lookupX]) {
+                            ctxGreen.fillStyle = '#00FF00';
+                            ctxGreen.fillRect(drawX, drawY, blockSize, blockSize);
+                        }
+                    } else {
+                        if (pattern[y][x]) {
+                            ctxGreen.fillStyle = '#00FF00';
+                            ctxGreen.fillRect(drawX, drawY, blockSize, blockSize);
+                        }
+                    }
+                }
+            }
+
+            updateGlobalPosition();
+            startTimer();
+        }
+
+        function drawPattern(ctx, pattern, color) {
+            ctx.fillStyle = color;
+            for (let y = 0; y < pattern.length; y++) {
+                for (let x = 0; x < pattern[y].length; x++) {
+                    if (pattern[y][x]) {
+                        ctx.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
+                    }
+                }
+            }
+        }
+
+        function updateGlobalPosition() {
+            const diff = state[state.currentType].difficulty;
+            // Convergence: Red moves right, Green moves left
+            // Divergence: Red moves left, Green moves right
+            let horizontalOffset = diff * 2; 
+
+            if (state.currentType === modes.CONV) {
+                canvasRed.style.transform = `translate(calc(-50% + ${horizontalOffset}px), -50%)`;
+                canvasGreen.style.transform = `translate(calc(-50% - ${horizontalOffset}px), -50%)`;
+            } else {
+                canvasRed.style.transform = `translate(calc(-50% - ${horizontalOffset}px), -50%)`;
+                canvasGreen.style.transform = `translate(calc(-50% + ${horizontalOffset}px), -50%)`;
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('conv-stat').innerText = `Conv: ${state.convergence.score} (Diff: ${state.convergence.difficulty}, Max: ${state.convergence.maxDifficulty})`;
+            document.getElementById('div-stat').innerText = `Div: ${state.divergence.score} (Diff: ${state.divergence.difficulty}, Max: ${state.divergence.maxDifficulty})`;
+        }
+
+        function handleGuess(pos) {
+            clearInterval(timerInterval);
+            if (pos === state.currentPos) {
+                state[state.currentType].score++;
+                state[state.currentType].difficulty += 2;
+                state[state.currentType].maxDifficulty = Math.max(state[state.currentType].maxDifficulty, state[state.currentType].difficulty);
+            } else {
+                state[state.currentType].difficulty = Math.max(0, state[state.currentType].difficulty - 5);
+            }
+            updateStats();
+            generateRDS();
+        }
+
+        document.getElementById('btn-up').onclick = () => handleGuess('up');
+        document.getElementById('btn-down').onclick = () => handleGuess('down');
+        document.getElementById('btn-left').onclick = () => handleGuess('left');
+        document.getElementById('btn-right').onclick = () => handleGuess('right');
+        document.getElementById('btn-center').onclick = () => handleGuess('skip');
+        document.getElementById('btn-reset').onclick = () => {
+            clearInterval(timerInterval);
+            state.convergence.difficulty = 0;
+            state.divergence.difficulty = 0;
+            updateStats();
+            updateGlobalPosition();
+            startTimer();
+        };
+
+        document.getElementById('timer-enabled').onchange = () => startTimer();
+
+        // Keyboard support
+        window.onkeydown = (e) => {
+            if (e.key === 'ArrowUp') handleGuess('up');
+            if (e.key === 'ArrowDown') handleGuess('down');
+            if (e.key === 'ArrowLeft') handleGuess('left');
+            if (e.key === 'ArrowRight') handleGuess('right');
+            if (e.key === ' ') {
+                e.preventDefault(); // Prevent scrolling
+                handleGuess('skip');
+            }
+        };
+
+        initCanvases();
+        generateRDS();
+        updateStats();
+
+        // Wake lock logic (copied from dynamic.html)
+        let wakeLock = null;
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {}
+        }
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') requestWakeLock();
+        });
+        requestWakeLock();
+    </script>
+</body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Images</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            text-align: center;
+        }
+        #image-container {
+            display: none;
+        }
+        .image-wrapper {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 80vw; /* Use viewport width for sizing */
+            height: 80vh; /* Use viewport height for sizing */
+            transform: translate(-50%, -50%);
+            transition: transform 0.1s ease-in-out;
+            z-index: -1; /* Place images behind the controls */
+        }
+        .image-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        #green-wrapper {
+            mix-blend-mode: multiply;
+        }
+        select, input[type="range"] {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dynamic Images</h1>
+        <a href="index.html">Back to Home</a>
+        <br>
+        <label for="image-select">Choose an image:</label>
+        <select id="image-select">
+            <option value="">--Please choose an option--</option>
+            <option value="clowns" selected>Clowns</option>
+        </select>
+
+        <label for="position-slider">Adjust Position:</label>
+        <input type="range" id="position-slider" step="1" value="0">
+
+        <label for="scale-slider">Adjust Scale:</label>
+        <input type="range" id="scale-slider" min="0.1" max="2" step="0.1" value="1">
+
+        <label for="distance-select">Viewing Distance:</label>
+        <select id="distance-select">
+            <option value="18">18 inches</option>
+            <option value="24" selected>2 feet</option>
+            <option value="30">30 inches</option>
+            <option value="36">3 feet</option>
+            <option value="42">42 inches</option>
+            <option value="48">4 feet</option>
+        </select>
+
+        <p>Estimated Prism Diopter Angle (Horizontal): <span id="diopter-angle-horizontal">0</span></p>
+        <p>Estimated Prism Diopter Angle (Vertical): <span id="diopter-angle-vertical">0</span></p>
+
+        <button id="reset-button">Reset to 0</button>
+    </div>
+
+    <div id="red-wrapper" class="image-wrapper">
+        <img id="image-red" src="dynamic/clowns-red.png" alt="Red Image">
+    </div>
+    <div id="green-wrapper" class="image-wrapper">
+        <img id="image-green" src="dynamic/clowns-green.png" alt="Green Image">
+    </div>
+
+    <script>
+        const imageSelect = document.getElementById('image-select');
+        const redWrapper = document.getElementById('red-wrapper');
+        const greenWrapper = document.getElementById('green-wrapper');
+        const positionSlider = document.getElementById('position-slider');
+        const scaleSlider = document.getElementById('scale-slider');
+        const distanceSelect = document.getElementById('distance-select');
+        const diopterAngleHorizontalSpan = document.getElementById('diopter-angle-horizontal');
+        const diopterAngleVerticalSpan = document.getElementById('diopter-angle-vertical');
+        const resetButton = document.getElementById('reset-button');
+        let verticalOffset = 4;
+        let scale = 1;
+        let viewingDistance = 24; // Default viewing distance in inches
+        let zeroHorizontalOffset = 4 * 5;
+        let zeroVerticalOffset = 4;
+
+        positionSlider.value = 4; // Set initial horizontal offset
+
+        function updateImagePositions(horizontalValue, verticalValue, scaleValue) {
+            const horizontalDisplacement = horizontalValue * 5; // Adjust this multiplier for more/less movement
+            redWrapper.style.transform = `translate(calc(-50% + ${horizontalDisplacement}px), calc(-50% + ${verticalValue}px)) scale(${scaleValue})`;
+            greenWrapper.style.transform = `translate(calc(-50% - ${horizontalDisplacement}px), calc(-50% - ${verticalValue}px)) scale(${scaleValue})`;
+
+            // Calculate and display the diopter prism angle
+            const horizontalSeparationInPixels = Math.abs((horizontalDisplacement - zeroHorizontalOffset) * 2);
+            const verticalSeparationInPixels = Math.abs((verticalValue - zeroVerticalOffset) * 2);
+            const separationInInchesHorizontal = horizontalSeparationInPixels / 96; // Assuming 96 DPI
+            const separationInInchesVertical = verticalSeparationInPixels / 96; // Assuming 96 DPI
+            const separationInCmHorizontal = separationInInchesHorizontal * 2.54;
+            const separationInCmVertical = separationInInchesVertical * 2.54;
+            const viewingDistanceInM = viewingDistance * 0.0254;
+            const diopterAngleHorizontal = separationInCmHorizontal / viewingDistanceInM;
+            const diopterAngleVertical = separationInCmVertical / viewingDistanceInM;
+            diopterAngleHorizontalSpan.textContent = diopterAngleHorizontal.toFixed(2);
+            diopterAngleVerticalSpan.textContent = diopterAngleVertical.toFixed(2);
+        }
+
+        imageSelect.addEventListener('change', (event) => {
+            const selectedImage = event.target.value;
+            if (selectedImage) {
+                document.getElementById('image-red').src = `dynamic/${selectedImage}-red.png`;
+                document.getElementById('image-green').src = `dynamic/${selectedImage}-green.png`;
+            }
+        });
+
+        positionSlider.addEventListener('input', (event) => {
+            updateImagePositions(event.target.value, verticalOffset, scale);
+        });
+
+        scaleSlider.addEventListener('input', (event) => {
+            scale = event.target.value;
+            updateImagePositions(positionSlider.value, verticalOffset, scale);
+        });
+
+        distanceSelect.addEventListener('change', (event) => {
+            viewingDistance = event.target.value;
+            updateImagePositions(positionSlider.value, verticalOffset, scale);
+        });
+
+        resetButton.addEventListener('click', () => {
+            zeroHorizontalOffset = positionSlider.value * 5;
+            zeroVerticalOffset = verticalOffset;
+            updateImagePositions(positionSlider.value, verticalOffset, scale);
+        });
+
+        window.addEventListener('keydown', (event) => {
+            let currentHorizontalValue = parseInt(positionSlider.value);
+            if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                verticalOffset -= 1;
+                updateImagePositions(positionSlider.value, verticalOffset, scale);
+            } else if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                verticalOffset += 1;
+                updateImagePositions(positionSlider.value, verticalOffset, scale);
+            } else if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                positionSlider.value = currentHorizontalValue - 1;
+                updateImagePositions(positionSlider.value, verticalOffset, scale);
+            } else if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                positionSlider.value = currentHorizontalValue + 1;
+                updateImagePositions(positionSlider.value, verticalOffset, scale);
+            }
+        });
+
+        // Initial position update
+        updateImagePositions(positionSlider.value, verticalOffset, scale);
+
+        let wakeLock = null;
+
+        async function requestWakeLock() {
+          try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Screen Wake Lock is active');
+          } catch (err) {
+            console.error(`${err.name}, ${err.message}`);
+          }
+        }
+
+        function handleVisibilityChange() {
+          if (document.visibilityState === 'visible' && wakeLock !== null) {
+            requestWakeLock();
+          }
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        requestWakeLock();
+    </script>
+</body>
+</html>
